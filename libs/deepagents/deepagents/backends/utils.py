@@ -6,6 +6,7 @@ enable composition without fragile string parsing.
 """
 
 import functools
+import io
 import logging
 import os
 import re
@@ -666,13 +667,16 @@ def slice_read_response(
     if limit == 0:
         return ReadResult(file_data=_copy_file_data_with_content(file_data, ""), no_lines_requested=True)
 
-    # `splitlines(keepends=True)` retains each line's terminator, including
-    # the absence of one on the final line. Joining with `""` therefore
-    # round-trips the trailing-newline state of the file faithfully —
-    # required so `edit()` can report EOF-newline mismatches accurately. It
-    # also splits on CR / CRLF, so line indexing matches the LF-normalized
-    # form without first rewriting the whole (potentially huge) string.
-    lines = content.splitlines(keepends=True)
+    # `readlines()` retains each line's terminator, including the absence of
+    # one on the final line. Joining with `""` therefore round-trips the
+    # trailing-newline state of the file faithfully, which `edit()` needs to
+    # report EOF-newline mismatches accurately. With `newline=""` it splits on
+    # LF, CR and CRLF only, so line indexing matches the LF-normalized form
+    # without first rewriting the whole (potentially huge) string.
+    # `str.splitlines` is not equivalent: it also breaks on form feeds,
+    # vertical tabs, NEL and U+2028/U+2029, which would shift line numbers
+    # away from what `grep` reports for the same file.
+    lines = io.StringIO(content, newline="").readlines()
     start_idx = offset
     end_idx = min(start_idx + limit, len(lines))
     total_lines = len(lines)

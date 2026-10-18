@@ -584,6 +584,14 @@ class TestSliceReadResponse:
         result = slice_read_response(self._file("a\nb\nc"), offset=2, limit=1)
         assert self._content(result) == "c"
 
+    @pytest.mark.parametrize("char", ["\f", "\v", "\x1c", "\x85", "\u2028", "\u2029"])
+    def test_only_newlines_start_a_line(self, char: str) -> None:
+        """Characters `str.splitlines` treats as breaks stay inside the line, matching `grep` line numbers."""
+        result = slice_read_response(self._file(f"a{char}b\nc\n"), offset=1, limit=1)
+        assert self._content(result) == "c\n"
+        assert result.total_lines == 2
+        assert result.start_line == 2
+
     def test_partial_window_includes_pagination_metadata(self) -> None:
         result = slice_read_response(self._file("a\nb\nc\nd\n"), offset=1, limit=2)
         assert result.total_lines == 4

@@ -4,6 +4,7 @@ This module tests the memory middleware using end-to-end tests with fake chat mo
 and temporary directories with the FilesystemBackend in normal (non-virtual) mode.
 """
 
+import re
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -270,6 +271,17 @@ def test_load_memory_from_backend_single_source(tmp_path: Path) -> None:
     assert memory_path in result["memory_contents"]
     assert "type hints" in result["memory_contents"][memory_path]
     assert "functional patterns" in result["memory_contents"][memory_path]
+
+
+def test_load_memory_non_utf8_source_names_the_file(tmp_path: Path) -> None:
+    """A memory file in a legacy encoding fails with an error that names it."""
+    backend = FilesystemBackend(root_dir=str(tmp_path), virtual_mode=False)
+    memory_path = str(tmp_path / "AGENTS.md")
+    backend.upload_files([(memory_path, "Prefer café examples.\n".encode("cp1252"))])
+    middleware = MemoryMiddleware(backend=backend, sources=[memory_path])
+
+    with pytest.raises(ValueError, match=f"Failed to decode {re.escape(memory_path)} as UTF-8"):
+        middleware.before_agent({}, None, {})  # type: ignore[arg-type]
 
 
 def test_load_memory_from_backend_multiple_sources(tmp_path: Path) -> None:

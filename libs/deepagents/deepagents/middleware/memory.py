@@ -177,6 +177,15 @@ def _strip_html_comments(text: str) -> str:
     return _HTML_COMMENT_RE.sub("", text)
 
 
+def _decode_memory(path: str, content: bytes) -> str:
+    """Decode a memory source, naming the file when it is not valid UTF-8."""
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError as e:
+        msg = f"Failed to decode {path} as UTF-8: {e}"
+        raise ValueError(msg) from e
+
+
 class MemoryMiddleware(AgentMiddleware[MemoryState, ContextT, ResponseT]):
     """Middleware for loading agent memory from `AGENTS.md` files.
 
@@ -305,7 +314,7 @@ class MemoryMiddleware(AgentMiddleware[MemoryState, ContextT, ResponseT]):
                 msg = f"Failed to download {path}: {response.error}"
                 raise ValueError(msg)
             if response.content is not None:
-                contents[path] = response.content.decode("utf-8")
+                contents[path] = _decode_memory(path, response.content)
                 logger.debug("Loaded memory from: %s", path)
 
         return MemoryStateUpdate(memory_contents=contents)
@@ -339,7 +348,7 @@ class MemoryMiddleware(AgentMiddleware[MemoryState, ContextT, ResponseT]):
                 msg = f"Failed to download {path}: {response.error}"
                 raise ValueError(msg)
             if response.content is not None:
-                contents[path] = response.content.decode("utf-8")
+                contents[path] = _decode_memory(path, response.content)
                 logger.debug("Loaded memory from: %s", path)
 
         return MemoryStateUpdate(memory_contents=contents)

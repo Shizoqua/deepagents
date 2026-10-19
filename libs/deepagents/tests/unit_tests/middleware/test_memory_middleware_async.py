@@ -3,8 +3,10 @@
 This module contains async versions of memory middleware tests.
 """
 
+import re
 from pathlib import Path
 
+import pytest
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -58,6 +60,17 @@ async def test_load_memory_from_backend_single_source_async(tmp_path: Path) -> N
     assert memory_path in result["memory_contents"]
     assert "type hints" in result["memory_contents"][memory_path]
     assert "functional patterns" in result["memory_contents"][memory_path]
+
+
+async def test_load_memory_non_utf8_source_names_the_file_async(tmp_path: Path) -> None:
+    """A memory file in a legacy encoding fails with an error that names it (async)."""
+    backend = FilesystemBackend(root_dir=str(tmp_path), virtual_mode=False)
+    memory_path = str(tmp_path / "AGENTS.md")
+    backend.upload_files([(memory_path, "Prefer café examples.\n".encode("cp1252"))])
+    middleware = MemoryMiddleware(backend=backend, sources=[memory_path])
+
+    with pytest.raises(ValueError, match=f"Failed to decode {re.escape(memory_path)} as UTF-8"):
+        await middleware.abefore_agent({}, None, {})  # type: ignore[arg-type]
 
 
 async def test_load_memory_from_backend_multiple_sources_async(tmp_path: Path) -> None:
